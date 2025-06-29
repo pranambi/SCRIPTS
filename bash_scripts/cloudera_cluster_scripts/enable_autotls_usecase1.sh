@@ -9,6 +9,8 @@
 ################################################################################################################################
 
 # Display all the commands in the console
+set -euo pipefail
+IFS=$'\n\t'
 #set -x;
 
 # Source the configuration file
