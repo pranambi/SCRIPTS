@@ -1,60 +1,69 @@
 #!/bin/bash
 
-###########################################################################################################
-# Author: Praneeth Nambiar                                                                                #
-# Date: 01/Aug/2024                                                                                       #
-# This script runs Ranger Setup Plugin, Upload Tez tar, Spark Dir Commands, Creates livy user dir in HDFS #
-###########################################################################################################
+##############################################################################################
+# Author: Praneeth Nambiar
+# Date: 01/Aug/2024
+# Purpose: 
+#   - Run Ranger Setup Plugin
+#   - Upload Tez tar
+#   - Create Spark directories
+#   - Create Livy user HDFS directory
+##############################################################################################
 
-# Display all the commands in the console
-set -x;
+set -euo pipefail
+IFS=$'\n\t'
+set -x
 
-# Source the configuration file
+# Source configuration
 source ./inventory/shellscript_cm_host_var.conf
 
-# Extracting cluster name from api itself
-CM_CLUSTER_NAME=$(curl -u $CM_USERNAME:$CM_PASSWORD -k -X GET "$CM_URL/api/v54/clusters" | jq -r '.items[].displayName' | sed 's/ /%20/g')
+# Function to perform a CM API POST call
+cm_post() {
+  local endpoint="$1"
+  curl -s -u "$CM_USERNAME:$CM_PASSWORD" -k -X POST "$CM_URL/api/v54/$endpoint"
+}
 
-# ==================================== SCRIPT STARTS HERE ==================================== #
+# Function to create HDFS directory
+hdfs_mkdir() {
+  local path="$1"
+  curl -s -k -X PUT "$ACTIVE_NAMENODE_URL/webhdfs/v1$path?op=MKDIRS&user.name=hdfs"
+}
 
-echo -e "==== PRE-FIX STEPS GETTING STARTED ==== \n"
+# Function to change HDFS directory owner
+hdfs_chown() {
+  local path="$1"
+  local owner="$2"
+  curl -s -k -X PUT "$ACTIVE_NAMENODE_URL/webhdfs/v1$path?op=SETOWNER&owner=$owner&user.name=hdfs"
+}a
 
-# ========= HIVE/HBASE RANGER PLUGIN NOT FOUND/PERMISSION ISSUE FIX ========= #
+# Get cluster name
+CM_CLUSTER_NAME=$(curl -s -u "$CM_USERNAME:$CM_PASSWORD" -k "$CM_URL/api/v54/clusters" \
+  | jq -r '.items[].displayName' | sed 's/ /%20/g')
 
-# To trigger Ranger Setup Plugin command
-curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$RANGER_SERVICE_NAME/commands/SetupPluginServices"
+echo -e "\n==== STARTING PRE-FIX STEPS ====\n"
+
+# Ranger Plugin Setup
+cm_post "clusters/$CM_CLUSTER_NAME/services/$RANGER_SERVICE_NAME/commands/SetupPluginServices"
 sleep 10
 
-# To trigger upload tar file from Tez service
-curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$TEZ_SERVICE_NAME/commands/TezUploadTar"
+# Tez tar upload
+cm_post "clusters/$CM_CLUSTER_NAME/services/$TEZ_SERVICE_NAME/commands/TezUploadTar"
 sleep 10
 
-# ========= LIVY USER DIR NOT FOUND FIX ========= #
-
-# To trigger Spark hdfs dir creation commands
-curl -s -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$SPARK_SERVICE_NAME/commands/CreateSparkUserDirCommand"
-curl -s -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$SPARK_SERVICE_NAME/commands/CreateSparkDriverLogDirCommand"
-curl -s -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$SPARK_SERVICE_NAME/commands/CreateSparkHistoryDirCommand"
+# Spark directory creation
+for cmd in CreateSparkUserDirCommand CreateSparkDriverLogDirCommand CreateSparkHistoryDirCommand; do
+  cm_post "clusters/$CM_CLUSTER_NAME/services/$SPARK_SERVICE_NAME/commands/$cmd"
+done
 sleep 10
 
-# ========= LIVY USER DIR NOT FOUND FIX ========= #
+# Livy HDFS directory creation and ownership
+hdfs_mkdir "/user/livy"
+hdfs_chown "/user/livy" "livy"
 
-# To create '/user/livy' directory and change owner of the same to 'livy' user
-curl -k -X PUT "$ACTIVE_NAMENODE_URL/webhdfs/v1/user/livy?op=MKDIRS&user.name=hdfs"
-curl -k -X PUT "$ACTIVE_NAMENODE_URL/webhdfs/v1/user/livy?op=SETOWNER&owner=livy&user.name=hdfs"
-
-# ========= RESTART SERVICES ========= #
-
-# Restart HS2 Service
-#curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$HIVEONTEZ_SERVICE_NAME/commands/restart"
-
-# Restart Hbase Service
-#curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$HBASE_SERVICE_NAME/commands/restart"
-
-# Restart Spark Service
-#curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$SPARK_SERVICE_NAME/commands/restart"
-
-# Restart livy Service
-#curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/v54/clusters/$CM_CLUSTER_NAME/services/$LIVY_SERVICE_NAME/commands/restart"
+# Uncomment these if restarts are needed
+# cm_post "clusters/$CM_CLUSTER_NAME/services/$HIVEONTEZ_SERVICE_NAME/commands/restart"
+# cm_post "clusters/$CM_CLUSTER_NAME/services/$HBASE_SERVICE_NAME/commands/restart"
+# cm_post "clusters/$CM_CLUSTER_NAME/services/$SPARK_SERVICE_NAME/commands/restart"
+# cm_post "clusters/$CM_CLUSTER_NAME/services/$LIVY_SERVICE_NAME/commands/restart"
 
 echo -e "\n==== PRE-FIX STEPS COMPLETED ====\n"
