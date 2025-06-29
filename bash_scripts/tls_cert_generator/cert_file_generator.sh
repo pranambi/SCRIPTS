@@ -2,6 +2,10 @@
 
 # ================================ EDIT BELOW WITH FULL HOSTNAMES ================================ #
 
+# Setting safety
+set -euo pipefail
+IFS=$'\n\t'
+
 # Create host file
 cat << EOF > hosts
 node1.domain.com
