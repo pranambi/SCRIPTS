@@ -8,6 +8,8 @@
 ################################################################################################################################################
 
 # Display all the commands in the console
+set -euo pipefail
+IFS=$'\n\t'
 #set -x;
 
 # Source the configuration file
@@ -142,7 +144,7 @@ curl -u $CM_USERNAME:$CM_PASSWORD -k -X POST "$CM_URL/api/$CM_API_V/cm/service/c
     STATUS=$(curl -s -u $CM_USERNAME:$CM_PASSWORD -k "$CM_URL/api/$CM_API_V/cm/service")
     entity_status=$(echo "$STATUS" | jq -r '.serviceState')
 
-    # If the serviceState is STATED, break out of the loop
+    # If the serviceState is STARTED, break out of the loop
     if [[ "$entity_status" == "STARTED" ]]; then
       echo "CMS Service has started successfully."
       break
