@@ -8,12 +8,16 @@
 
 # ==================================== VARIABLES START HERE ==================================== #
 
+# Setting safety gurads
+set -euo pipefail
+IFS=$'\n\t'
+
 # Source the configuration file
 source ./inventory/shellscript_cm_host_var.conf
 
 # All host details
 # Eg: NODE1_HOSTID="501c03c4-fa87-48f6-b705-b38348ed748f", NODE1_HOSTNAME="node1.cdp1111-psnambiar.coelab.cloudera.com" etc
-hosts=$(curl -k -u $CM_USERNAME:$CM_PASSWORD -k -X GET "$CM_URL/api/v54/hosts")
+hosts=$(curl -u $CM_USERNAME:$CM_PASSWORD -k -X GET "$CM_URL/api/v54/hosts")
 count=1
 echo "$hosts" | jq -r '.items[] | "\(.hostId) \(.hostname)"' | while read -r hostId hostname; do
   echo "NODE${count}_HOSTID=\"$hostId\""
