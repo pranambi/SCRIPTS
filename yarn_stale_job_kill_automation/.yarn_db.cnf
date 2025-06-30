@@ -1,0 +1,5 @@
+[client]
+user=root
+host=localhost
+password=""
+database=yarn_stale_job_auto
